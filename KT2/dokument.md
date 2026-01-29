@@ -61,19 +61,13 @@ korišćenje podataka od strane sistema.
 
 ## Tokovi podataka
 
-- **Podaci o kursu** – tok podataka kojim instruktor prosleđuje
-  > informacije o kursu procesu za upravljanje kursevima.
+- **Podaci o kursu** – tok podataka kojim instruktor prosleđuje informacije o kursu procesu za upravljanje kursevima.
 
-- **Skladištenje strukture kursa** – tok kojim se obrađeni podaci o
-  > kursu upisuju u bazu podataka.
+- **Skladištenje strukture kursa** – tok kojim se obrađeni podaci o kursu upisuju u bazu podataka.
 
-- **Upis/čitanje napretka** – dvosmerni tok između sistema za praćenje
-  > napretka i baze, kojim se evidentira i učitava stanje napretka
-  > studenta.
+- **Upis/čitanje napretka** – dvosmerni tok između sistema za praćenje napretka i baze, kojim se evidentira i učitava stanje napretka studenta.
 
-- **Praćenje lekcija / prikaz napretka** – tok podataka kojim se
-  > studentu prikazuju informacije o završenim lekcijama i ukupnom
-  > napretku.
+- **Praćenje lekcija / prikaz napretka** – tok podataka kojim se studentu prikazuju informacije o završenim lekcijama i ukupnom napretku.
 
 # Django arhitektura
 
