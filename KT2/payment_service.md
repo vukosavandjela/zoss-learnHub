@@ -15,7 +15,7 @@ Payment Service ne vrši direktne isplate instruktorima. Umjesto toga, servis in
 ### Dijagram toka podataka 
 Dijagram toka podataka (slika 1) prikazuje interakciju korisnika, klijentske aplikacije, Payment Service-a, eksternog platnog sistema Stripe, ostalih mikroservisa i baze podataka za evidenciju transakcija.
 
-![Payment Service DFD](KT2/media/payment_service_dfd.png)
+![Payment Service DFD](media/payment_service_dfd.png)
 
 _Slika 1_ - Dijagram toka podataka
 
@@ -73,7 +73,7 @@ U fazi _type checking_ kompajler provjerava da li su tipovi ispravni i da li su 
 MIR se zatim prevodi u _LLVM-IR_, tipizirani jezik sličan asembleru, što omogućava dalja optimizovanja. LLVM backend generiše native kod za ciljne platforme (x86, ARM, WASM itd.) i povezuje različite biblioteke u konačni izvršni fajl. Tokom ovog procesa rustc koristi _query_ sistem, gde se svaka analiza ili transformacija tretira kao upit, a rezultati se keširaju u centralnoj strukturi _TyCtxt._ Ovo omogućava da, kada se kod promijeni, kompajler ponovo obrađuje samo dijelove koji su se promijenili.  
 Kompajler takođe podržava paralelizaciju, naročito u fazi generisanja koda i optimizacija. On je i sam _bootstrapovan_ - starija verzija kompajlera koristi se za kompajliranje novije verzije, što omogućava stalno testiranje jezika kroz njegovu stvarnu upotrebu, poznato i kao „eating our own dogfood". Na ovaj način rustc kombinuje rigorozne statičke provjere sa efikasnom organizacijom rada i generisanjem optimizovanog koda za različite platforme.
 
-![Rust Internals](KT2/media/rust-internals.png)
+![Rust Internals](media/rust-internals.png)
 
 _Slika 2_ - Rust internals
 
