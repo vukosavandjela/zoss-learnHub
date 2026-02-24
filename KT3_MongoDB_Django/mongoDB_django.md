@@ -23,6 +23,7 @@ identifikuju korisnika (**Cookie/sessionid, Authorization,
 request.user**), jer je cilj dizajna da se isti javni sadržaj deli
 između više korisnika radi boljih performansi.
 
+```
 +-----------------------------------------------------------------------+
 | cache_key = md5_hash(                                                 |
 |                                                                       |
@@ -34,6 +35,7 @@ između više korisnika radi boljih performansi.
 |                                                                       |
 | )                                                                     |
 +-----------------------------------------------------------------------+
+```
 
 Ranjivost nastaje kada se opisani mehanizam primeni na **personalizovane
 endpointe** --- odgovore koji zavise od identiteta korisnika. Dva
@@ -58,7 +60,7 @@ detalj je da cache entry traje dovoljno dugo da ga drugi korisnik
 
 Primjer konfiguracije (bitno je TIMEOUT i činjenica da se koristi
 centralni Redis):
-
+```
 +-----------------------------------------------------------------------+
 | \# learnhub/settings.py                                               |
 |                                                                       |
@@ -78,6 +80,7 @@ centralni Redis):
 |                                                                       |
 | }                                                                     |
 +-----------------------------------------------------------------------+
+```
 
 Ovdje TIMEOUT = 3600 znači da jednom "otrovan" (poisoned) odgovor može
 ostati aktivan **1 sat**, što u praksi daje napadaču dovoljno vremena da
