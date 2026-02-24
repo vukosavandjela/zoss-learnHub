@@ -4,7 +4,7 @@ Video Streaming Service je Go aplikacija koja studentima omogućava pristup eduk
 
 Slika ispod predstavlja stablo napada – sumiranu vizualizaciju/pregled ranjivosti koje omogućuju DoS, opise konkretnih napada, te njihovih mitigacija, a koje su opisane u nastavku dokumenta:
 
-![Attack Tree - Golang DoS](./attack-tree-golang.png)
+![Attack Tree - Golang DoS](./golangDosStabloNapada.drawio.png)
 
 ---
 
