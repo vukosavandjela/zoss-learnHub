@@ -24,17 +24,11 @@ request.user**), jer je cilj dizajna da se isti javni sadržaj deli
 između više korisnika radi boljih performansi.
 
 ```
-+-----------------------------------------------------------------------+
-| cache_key = md5_hash(                                                 |
-|                                                                       |
-| request.get_full_path() + \# URL path                                 |
-|                                                                       |
-| request.META\[\'HTTP_ACCEPT_LANGUAGE\'\] + \# Accept-Language         |
-|                                                                       |
-| request.META\[\'HTTP_ACCEPT_ENCODING\'\] \# Accept-Encoding           |
-|                                                                       |
-| )                                                                     |
-+-----------------------------------------------------------------------+
+cache_key = md5_hash(
+    request.get_full_path() +           # URL path
+    request.META['HTTP_ACCEPT_LANGUAGE'] +  # Accept-Language
+    request.META['HTTP_ACCEPT_ENCODING']    # Accept-Encoding
+)
 ```
 
 Ranjivost nastaje kada se opisani mehanizam primeni na **personalizovane
@@ -61,25 +55,15 @@ detalj je da cache entry traje dovoljno dugo da ga drugi korisnik
 Primjer konfiguracije (bitno je TIMEOUT i činjenica da se koristi
 centralni Redis):
 ```
-+-----------------------------------------------------------------------+
-| \# learnhub/settings.py                                               |
-|                                                                       |
-| CACHES = {                                                            |
-|                                                                       |
-| \'default\': {                                                        |
-|                                                                       |
-| \'BACKEND\': \'django_redis.cache.RedisCache\',                       |
-|                                                                       |
-| \'LOCATION\': \'redis://127.0.0.1:6379/1\',                           |
-|                                                                       |
-| \'KEY_PREFIX\': \'learnhub\',                                         |
-|                                                                       |
-| \'TIMEOUT\': 3600,                                                    |
-|                                                                       |
-| }                                                                     |
-|                                                                       |
-| }                                                                     |
-+-----------------------------------------------------------------------+
+# learnhub/settings.py
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'KEY_PREFIX': 'learnhub',
+        'TIMEOUT': 3600,
+    }
+}
 ```
 
 Ovdje TIMEOUT = 3600 znači da jednom "otrovan" (poisoned) odgovor može
@@ -98,33 +82,24 @@ cookie-ja** i bez request.user. To znači: *response koji je
 drugima.*
 
 Ranjivi dio je upravo ovo:
+```
+from django.views.decorators.cache import cache_page
 
-+-----------------------------------------------------------------------+
-| from django.views.decorators.cache import cache_page                  |
-|                                                                       |
-| \@cache_page(60 \* 60) \# ⚠️ RANJIVO: kešira response bez             |
-| user-specific cache key-a                                             |
-|                                                                       |
-| def get_course_progress(request, course_id):                          |
-|                                                                       |
-| student = request.user \# ← USER-SPECIFIC identitet                   |
-|                                                                       |
-| progress = StudentProgress.objects(                                   |
-|                                                                       |
-| student_id=student.id, \# ← USER-SPECIFIC podaci                      |
-|                                                                       |
-| course_id=ObjectId(course_id)                                         |
-|                                                                       |
-| ).first()                                                             |
-|                                                                       |
-| return JsonResponse({                                                 |
-|                                                                       |
-| \'student_id\': student.id, \# ← USER-SPECIFIC response               |
-|                                                                       |
-| \'completion_percentage\': progress.completion_percentage             |
-|                                                                       |
-| })                                                                    |
-+-----------------------------------------------------------------------+
+@cache_page(60 * 60)   # ⚠️ RANJIVO: kešira response bez user-specific cache key-a
+def get_course_progress(request, course_id):
+
+    student = request.user   # ← USER-SPECIFIC identitet
+
+    progress = StudentProgress.objects(
+        student_id=student.id,   # ← USER-SPECIFIC podaci
+        course_id=ObjectId(course_id)
+    ).first()
+
+    return JsonResponse({
+        'student_id': student.id,   # ← USER-SPECIFIC response
+        'completion_percentage': progress.completion_percentage
+    })
+```
 
 Teorijski, ovdje je suština: **endpoint vraća user-specific sadržaj**,
 ali caching tretira taj sadržaj kao **shared** (zajednički) za sve koji
@@ -216,11 +191,9 @@ način eliminiše se **cache key kolizija**, koja je osnovni tehnički
 mehanizam cache poisoning napada.
 
 Ova promjena se ogleda u načinu formiranja cache ključa:
-
-  -----------------------------------------------------------------------
-  cache_key = f\"course_progress\_{course_id}\_user\_{request.user.id}\"
-
-  -----------------------------------------------------------------------
+```
+cache_key = f"course_progress_{course_id}_user_{request.user.id}"
+```
 
 Uvođenjem **korisničkog identifikatora** u cache ključ postiže se:
 
@@ -241,31 +214,23 @@ situacija u kojoj cache može **preskočiti sigurnosnu logiku view
 funkcije** i nenamjerno vratiti tuđe podatke.
 
 Bezbedan obrazac rada može se predstaviti ovako:
+```
+# 1. Formiranje user-specific cache ključa
+cache_key = f"course_progress_{course_id}_user_{request.user.id}"
 
-+-----------------------------------------------------------------------+
-| \# 1. Formiranje user-specific cache ključa                           |
-|                                                                       |
-| cache_key =                                                           |
-| f\"course_progress\_{course_id}\_user\_{request.user.id}\"            |
-|                                                                       |
-| \# 2. Provjera cache-a                                                |
-|                                                                       |
-| cached = cache.get(cache_key)                                         |
-|                                                                       |
-| if cached:                                                            |
-|                                                                       |
-| return JsonResponse(cached)                                           |
-|                                                                       |
-| \# 3. Generisanje podataka iz baze (vezano za korisnika)              |
-|                                                                       |
-| data = compute_user_specific_data(request.user.id)                    |
-|                                                                       |
-| \# 4. Keširanje izolovanog odgovora                                   |
-|                                                                       |
-| cache.set(cache_key, data, 3600)                                      |
-|                                                                       |
-| return JsonResponse(data)                                             |
-+-----------------------------------------------------------------------+
+# 2. Provjera cache-a
+cached = cache.get(cache_key)
+if cached:
+    return JsonResponse(cached)
+
+# 3. Generisanje podataka iz baze (vezano za korisnika)
+data = compute_user_specific_data(request.user.id)
+
+# 4. Keširanje izolovanog odgovora
+cache.set(cache_key, data, 3600)
+
+return JsonResponse(data)
+```
 
 Ovaj model garantuje da **cache hit više ne može zaobići sigurnosni
 kontekst korisnika**, jer je identitet korisnika već ugrađen u cache
@@ -302,6 +267,7 @@ različitih korisnika putem keš mehanizma:
     standardna aplikaciona logika i mehanizmi logovanja ne izvršavaju.
     Sistem često nema pouzdan trag o neovlašćenom pristupu podacima, pa
     ranjivost može dugo ostati neprimećena.
+
 
 ## Napad 2: Server-Side Template Injection (SSTI)
 
