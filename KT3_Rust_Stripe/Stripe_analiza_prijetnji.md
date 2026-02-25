@@ -2,7 +2,7 @@
 
 Slika ispod prikazuje napade koji ostvaruju prijetnju P1 i bezbjednosne kontrole koje se izvlače iz analizirane prijetnje.
 
-![](data:image/)
+![](stablo_napada_stripe.png)
 
 Napadač eksploatiše ranjivost u webhook integracionom kanalu između Stripe-a i Rust backend servisa kako bi aplikacija aktivirala pristup plaćenom sadržaju bez verifikacije stvarnog plaćanja. Webhook endpoint predstavlja granicu povjerenja između Stripe-a i backend aplikacije — na ovoj granici Stripe garantuje autentičnost događaja kroz kriptografski potpis, ali odgovornost za verifikaciju tog potpisa leži na aplikaciji. Narušeno sigurnosno svojstvo prema CIA trijadi je **Integritet (I)** — sistem procesuira neautorizovane payment evente kao legitimne.
 
