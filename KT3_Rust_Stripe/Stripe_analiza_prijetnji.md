@@ -17,7 +17,7 @@ Napad koji je opisan u nastavku se desava na koraku kada webhook stigne — napa
 
 U nastavku je opisan konkretan napad A1, sa priloženim videom sprovedenog napada na metu. U prvom segmentu videa napadač napada ranjivu verziju webhook handlera i ostvaruje prijetnju P1, a u drugom segmentu videa prikazana je mitigacija M1 gdje komentari naglašavaju linije koda koje predstavljaju konkretnu bezbjednosnu kontrolu.
 
-[linkovi do videa]
+[linkovi do videa](https://drive.google.com/file/d/1ijqAxZsmNI95wtGEG6EFbT2N8-E4xqM8/view?usp=drive_link)
 
 Da bi napad stavili u siri kontekst sigurnosnih propusta i olaksali identifikaciju slicnih ranjivosti u drugim sistemima, u nastavku je opisana klasa ranjiovsti koja je eksploatisana.
 
