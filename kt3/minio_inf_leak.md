@@ -4,7 +4,7 @@ Video sadržaj, DRM encryption keys i metadata skladišteni u MinIO Object Stora
 
 Sledi pregled pretnji, napada, mitigacija vezanih za Information Leak MinIO skladišta opisanih dalje u nastavku dokumenta:
 
-![Attack Tree - MinIO Information Disclosure](./attack-tree-minio.png)
+![Attack Tree - MinIO Information Disclosure](./minioStablo.drawio.png)
 
 ---
 
