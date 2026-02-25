@@ -81,6 +81,8 @@ for course in range(1, 100):
 print(f"Total stolen videos: {len(found_files)}")
 ```
 
+Pri ranjivoj konfiguraciji napadač dobija odgovor poput sledećeg i otkriva dostupne endpointe:
+![Response to vulnerable config](./minioVuln.png)
 ---
 
 ### Mitigacija
@@ -137,6 +139,9 @@ IP whitelisting dodatno ograničava pristup, čime zahtevi moraju dolaziti sa Go
 #### Monitoring i Anomaly Detection
 
 Dalje, mitigacija obuhvata i uvođenje sistema za monitoring koji bi pratio anomalije i prečeste GetObject zahteve, pattern-e koji ukazuju na sekvencijalni pristup (automatizovana skripta), ili nagle skokove u 403 odgovorima. Neophodno je automatski blokirati sumnjive IP adrese ili rate limiting zahteva.
+
+Dakle, uz mitigovanu ispravnu konfiguraciju napad je neuspešan:
+![Response to mitigated config](./minioMitig.png)
 
 ---
 
