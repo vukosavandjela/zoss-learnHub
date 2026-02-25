@@ -14,7 +14,7 @@ U nastavku su opisani napadi koji realizuju ovu prijetnju: jedan praktično spro
 
 **A1 — Praktično realizovan napad: Integer Overflow u checkout endpointu**
 
-U nastavku je opisan konkretan napad A1, sa priloženim videom sprovedenog napada na metu. U prvom segmentu videa napadač napada ranjivu verziju mete i ostvaruje konkretnu prijetnju P1, a u drugom segmentu videa prikazana je mitigacija M1, gdje komentari naglašavaju linije koda koje predstavljaju konkretnu bezbjednosnu kontrolu za sprovedeni napad.
+U nastavku je opisan konkretan napad A1, sa priloženim videom sprovedenog napada na metu. U prvom segmentu videa napadač napada ranjivu verziju mete i ostvaruje konkretnu prijetnju P1, a u drugom segmentu videa prikazana je mitigacija M1, gdje komentari naglašavaju linije koda koje predstavljaju konkretnu bezbjednosnu kontrolu za sprovedeni napad. [link do videa](https://drive.google.com/file/d/19tWjv6m2ToXmDAVdZaH9vp04KC2dm6xo/view?usp=sharing)
 
 **Klasa ranjivosti — CWE-190: Integer Overflow or Wraparound**
 
