@@ -6,7 +6,7 @@ Payment Servicu realizuje kroz podskup napada izloženih u narednom nivou
 stabla, i bezbjednosnih kontrola koje se izvlače iz analizirane
 prijetnje.
 
-![](./image1.png)
+![](./stablo_napada_rust.png)
 
 **Prijetnja - P1**
 
